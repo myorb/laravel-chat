@@ -1,0 +1,92 @@
+data:
+    image: dmitrymomot/docker-data
+    volumes:
+        - /root/.composer
+        - ./:/data/www:rw
+        - ./xhprof:/data/xhprof:rw
+        - ./app/storage/logs:/data/logs:rw
+        - ./public/uploads:/data/www/public/uploads:rw
+        - ./tests/api.suite.yml.local:/data/www/tests/api.suite.yml:ro
+        - ./app/config/local/database.php.docker:/data/www/app/config/local/database.php:ro
+        - ./composer.json:/data/www/composer.json:rw
+    command: "true"
+
+php:
+    image: dmitrymomot/php-fpm-xhprof
+    volumes_from:
+        - data
+    links:
+        - db
+        - memcached
+        - redis
+    restart: always
+
+db:
+    image: mariadb
+    environment:
+        MYSQL_ROOT_PASSWORD: root
+        MYSQL_DATABASE: database
+        MYSQL_USER: root
+        MYSQL_PASSWORD: root
+    volumes:
+        - ./app/database/dumps/docker:/docker-entrypoint-initdb.d
+    restart: always
+    privileged: true
+
+memcached:
+    image: memcached
+    restart: always
+
+redis:
+    image: redis
+    restart: always
+
+chat:
+    hostname: chat.dev
+    domainname: chat.dev
+    image: dmitrymomot/nginx
+    environment:
+        VIRTUAL_HOST: chat.dev
+    volumes_from:
+        - data
+    links:
+        - php:fpm
+    restart: always
+
+migrations:
+    image: dmitrymomot/laravel-artisan
+    command: migrate --seed --env=local
+    working_dir: /data/www
+    volumes_from:
+        - data
+    links:
+        - db
+        - memcached
+        - redis
+
+composer:
+    image: dmitrymomot/composer
+    volumes_from:
+        - data
+
+artisan:
+    image: dmitrymomot/laravel-artisan
+    volumes_from:
+        - data
+    links:
+        - db
+        - memcached
+        - redis
+
+queues:
+    image: dmitrymomot/laravel-artisan
+    command: queue:listen --env=local
+    working_dir: /data/www
+    volumes_from:
+        - data
+    links:
+        - db
+        - memcached
+        - redis
+    restart: always
+
